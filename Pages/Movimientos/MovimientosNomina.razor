@@ -1,0 +1,209 @@
+@page "/movimientos"
+
+@using NominaApp.Models
+@using NominaApp.Services
+@inject CatalogosService Catalogos
+@inject MovimientosService Movimientos
+@inject ExcelExportService ExcelExport
+
+<h3>Movimientos</h3>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <EditForm Model="@model" OnValidSubmit="@Agregar">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Empleado</label>
+                    <select class="form-select" @bind="model.EmpleadoId">
+                        @foreach (var e in empleados)
+                        {
+                            <option value="@e.Id">@e.Nombre</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Periodo (YYYY-MM)</label>
+                    <PeriodInput Value="@model.Periodo" ValueChanged="OnModelPeriodoChanged" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Concepto</label>
+                    <select class="form-select" @bind="model.ConceptoId">
+                        @foreach (var c in conceptos)
+                        {
+                            <option value="@c.Id">@c.Nombre (@c.Tipo)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Monto</label>
+                    <input class="form-control" type="number" step="0.01" @bind="model.Monto" />
+                </div>
+
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Agregar movimiento</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ExportarMovimientos">
+                        Exportar Excel
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div>
+                <h5 class="mb-0">Movimientos del periodo</h5>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0">Periodo</label>
+                <PeriodInput Value="@periodoSeleccionado" ValueChanged="OnPeriodoSeleccionadoChanged" />
+            </div>
+        </div>
+
+        @if (loading)
+        {
+            <div>Cargando...</div>
+        }
+        else
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Concepto</th>
+                        <th>Tipo</th>
+                        <th>Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in movimientosDtos)
+                    {
+                        <tr>
+                            <td>@row.EmpleadoNombre</td>
+                            <td>@row.ConceptoNombre</td>
+                            <td>@row.ConceptoTipo</td>
+                            <td>@row.Monto</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Empleado> empleados = new();
+    private List<ConceptoNomina> conceptos = new();
+
+    private MovForm model = new();
+
+    private bool loading;
+    private string periodoSeleccionado = DateTime.Today.ToString("yyyy-MM");
+    private List<(MovimientoNomina Movimiento, string ConceptoNombre, string ConceptoTipo)> movimientosRaw = new();
+
+    private List<MovimientoDto> movimientosDtos = new();
+    private readonly string[] headers = new[] { "Empleado", "Concepto", "Tipo", "Monto" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        empleados = await Catalogos.ListEmpleadosAsync();
+        conceptos = await Catalogos.ListConceptosAsync();
+
+        if (empleados.Count > 0 && model.EmpleadoId == 0)
+            model.EmpleadoId = empleados[0].Id;
+
+        if (conceptos.Count > 0 && model.ConceptoId == 0)
+            model.ConceptoId = conceptos[0].Id;
+
+        await CargarMovimientos();
+    }
+
+    private async Task Agregar()
+    {
+        await Movimientos.AgregarMovimientoAsync(new MovimientoNomina
+        {
+            EmpleadoId = model.EmpleadoId,
+            Periodo = model.Periodo,
+            ConceptoId = model.ConceptoId,
+            Monto = model.Monto
+        });
+
+        await CargarMovimientos();
+    }
+
+    private async Task CargarMovimientos()
+    {
+        loading = true;
+        try
+        {
+            movimientosRaw = await Movimientos.ListarMovimientosPorPeriodoAsync(periodoSeleccionado);
+
+            var empleadoNombreById = empleados.ToDictionary(x => x.Id, x => x.Nombre);
+
+            movimientosDtos = movimientosRaw
+                .Select(x => new MovimientoDto
+                {
+                    EmpleadoNombre = empleadoNombreById.TryGetValue(x.Movimiento.EmpleadoId, out var n) ? n : x.Movimiento.EmpleadoId.ToString(),
+                    ConceptoNombre = x.ConceptoNombre,
+                    ConceptoTipo = x.ConceptoTipo,
+                    Monto = x.Movimiento.Monto
+                })
+                .ToList();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void OnModelPeriodoChanged(string? v)
+    {
+        if (!string.IsNullOrWhiteSpace(v))
+            model.Periodo = v;
+    }
+
+    private async Task OnPeriodoSeleccionadoChanged(string? v)
+    {
+        if (!string.IsNullOrWhiteSpace(v))
+        {
+            periodoSeleccionado = v;
+            await CargarMovimientos();
+        }
+    }
+
+    private async Task ExportarMovimientos()
+    {
+        var bytes = await ExcelExport.ExportAsync(
+            sheetName: "Movimientos",
+            data: movimientosDtos,
+            headers: headers,
+            ct: CancellationToken.None);
+
+        var fileName = $"Movimientos_{periodoSeleccionado}.xlsx";
+        await ExcelExport.DownloadAsync(fileName, bytes, ct: CancellationToken.None);
+    }
+
+    private class MovForm
+    {
+        public long EmpleadoId { get; set; }
+        public string Periodo { get; set; } = DateTime.Today.ToString("yyyy-MM");
+        public long ConceptoId { get; set; }
+        public decimal Monto { get; set; }
+    }
+
+    private class MovimientoDto
+    {
+        public string EmpleadoNombre { get; set; } = "";
+        public string ConceptoNombre { get; set; } = "";
+        public string ConceptoTipo { get; set; } = "";
+        public decimal Monto { get; set; }
+    }
+}

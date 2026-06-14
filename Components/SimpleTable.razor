@@ -1,0 +1,30 @@
+@typeparam TItem
+
+<table class="table table-striped">
+    @if (Headers is not null)
+    {
+        <thead>
+            <tr>
+                @foreach (var h in Headers)
+                {
+                    <th>@h</th>
+                }
+            </tr>
+        </thead>
+    }
+    <tbody>
+        @if (Items is not null)
+        {
+            @foreach (var item in Items)
+            {
+                @RowTemplate(item)
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter] public IReadOnlyList<string>? Headers { get; set; }
+    [Parameter] public IEnumerable<TItem>? Items { get; set; }
+    [Parameter, EditorRequired] public RenderFragment<TItem> RowTemplate { get; set; } = default!;
+}

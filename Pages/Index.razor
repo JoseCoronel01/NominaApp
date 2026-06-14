@@ -1,0 +1,47 @@
+﻿@page "/"
+
+@using NominaApp.Models
+@using NominaApp.Services
+@inject CatalogosService Catalogos
+
+<PageTitle>Catalogos - Empleados</PageTitle>
+
+<h3>Catalogos - Empleados</h3>
+
+@if (empleados is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Nombre</th>
+                <th>Salario Base</th>
+                <th>Activo</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in empleados)
+            {
+                <tr>
+                    <td>@e.Id</td>
+                    <td>@e.Nombre</td>
+                    <td>@e.SalarioBase</td>
+                    <td>@(e.Activo ? "Sí" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Empleado>? empleados;
+
+    protected override async Task OnInitializedAsync()
+    {
+        empleados = await Catalogos.ListEmpleadosAsync();
+    }
+}

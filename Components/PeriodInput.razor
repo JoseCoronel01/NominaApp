@@ -1,0 +1,17 @@
+@* Simple selector de periodo (YYYY-MM) *@
+
+<input class="form-control"
+       type="month"
+       value="@Value"
+       @oninput="OnInput" />
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        await ValueChanged.InvokeAsync(v);
+    }
+}

@@ -1,0 +1,60 @@
+@page "/reportes"
+
+@using NominaApp.Models
+@inject NominaApp.Services.ReportesService ReportesService
+
+<h3>Reporte de Periodo</h3>
+
+<div class="row g-2 align-items-end">
+    <div class="col-auto">
+        <label class="form-label">Periodo (YYYY-MM)</label>
+        <input class="form-control" value="@periodo" @oninput="e => periodo = e.Value?.ToString() ?? string.Empty" />
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" @onclick="Calcular">Calcular</button>
+    </div>
+</div>
+
+@if (detalle is null)
+{
+    <p class="mt-3">Seleccione un periodo y presione Calcular.</p>
+}
+else
+{
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>Empleado</th>
+                <th>Total Ingresos</th>
+                <th>Total Descuentos</th>
+                <th>Abono Préstamo</th>
+                <th>Neto a Pagar</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var d in detalle)
+            {
+                <tr>
+                    <td>@d.EmpleadoId</td>
+                    <td>@d.TotalIngresos</td>
+                    <td>@d.TotalDescuentos</td>
+                    <td>@d.AbonoPrestamo</td>
+                    <td>@d.NetoAPagar</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string periodo = DateTime.Now.ToString("yyyy-MM");
+    private List<DetallePagoPeriodo>? detalle;
+
+    private async Task Calcular()
+    {
+        if (string.IsNullOrWhiteSpace(periodo))
+            return;
+
+        detalle = await ReportesService.GetDetallePagoPeriodoAsync(periodo);
+    }
+}
